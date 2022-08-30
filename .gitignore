@@ -17,3 +17,5 @@ bin/
 
 # sqlite databases files
 *.db
+*.db-shm
+*.db-wal
