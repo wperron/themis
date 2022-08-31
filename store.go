@@ -157,3 +157,63 @@ func (s *Store) ListClaims(ctx context.Context) ([]Claim, error) {
 
 	return claims, nil
 }
+
+type ClaimDetail struct {
+	Claim
+	Provinces []string
+}
+
+func (cd ClaimDetail) String() string {
+	sb := strings.Builder{}
+	sb.WriteString(fmt.Sprintf("%s\n", cd.Claim))
+	for _, p := range cd.Provinces {
+		sb.WriteString(fmt.Sprintf("  - %s\n", p))
+	}
+	return sb.String()
+}
+
+func (s *Store) DescribeClaim(ctx context.Context, ID int) (ClaimDetail, error) {
+	stmt, err := s.db.PrepareContext(ctx, `SELECT id, player, claim_type, val FROM claims WHERE id = ?`)
+	if err != nil {
+		return ClaimDetail{}, fmt.Errorf("failed to get claim: %w", err)
+	}
+
+	row := stmt.QueryRowContext(ctx, ID)
+
+	c := Claim{}
+	var rawType string
+	err = row.Scan(&c.ID, &c.Player, &rawType, &c.Name)
+	if err != nil {
+		return ClaimDetail{}, fmt.Errorf("failed to scan row: %w", err)
+	}
+	cl, err := ClaimTypeFromString(rawType)
+	if err != nil {
+		return ClaimDetail{}, fmt.Errorf("unexpected error converting raw claim type: %w", err)
+	}
+	c.Type = cl
+
+	stmt, err = s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT name FROM provinces where provinces.%s = ?`, claimTypeToColumn[cl]))
+	if err != nil {
+		return ClaimDetail{}, fmt.Errorf("failed to prepare query: %w", err)
+	}
+
+	rows, err := stmt.QueryContext(ctx, c.Name)
+	if err != nil {
+		return ClaimDetail{}, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	provinces := make([]string, 0)
+	for rows.Next() {
+		var p string
+		err = rows.Scan(&p)
+		if err != nil {
+			return ClaimDetail{}, fmt.Errorf("failed to scan result set: %w", err)
+		}
+		provinces = append(provinces, p)
+	}
+
+	return ClaimDetail{
+		Claim:     c,
+		Provinces: provinces,
+	}, nil
+}
