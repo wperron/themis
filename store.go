@@ -39,10 +39,6 @@ var claimTypeToColumn = map[ClaimType]string{
 	CLAIM_TYPE_TRADE:  "trade_node",
 }
 
-type Store struct {
-	db *sql.DB
-}
-
 type Claim struct {
 	ID     int
 	Player string
@@ -60,6 +56,10 @@ type ErrConflict struct {
 
 func (ec ErrConflict) Error() string {
 	return fmt.Sprintf("found conflicting provinces: %s", strings.Join(ec.Conflicts, ", "))
+}
+
+type Store struct {
+	db *sql.DB
 }
 
 func NewStore(conn string) (*Store, error) {
@@ -112,6 +112,23 @@ func (s *Store) Claim(ctx context.Context, player, province string, claimType Cl
 
 	if len(conflicts) > 0 {
 		return ErrConflict{Conflicts: conflicts}
+	}
+
+	// check that provided name matches the claim type
+	stmt, err = s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT COUNT(1) FROM provinces WHERE provinces.%s = ?`, claimTypeToColumn[claimType]))
+	if err != nil {
+		return fmt.Errorf("failed to prepare count query: %w", err)
+	}
+
+	row := stmt.QueryRowContext(ctx, province)
+	var count int
+	err = row.Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to scan: %w", err)
+	}
+
+	if count == 0 {
+		return fmt.Errorf("found no provinces for %s named %s", claimType, province)
 	}
 
 	stmt, err = s.db.PrepareContext(ctx, "INSERT INTO claims (player, claim_type, val) VALUES (?, ?, ?)")
