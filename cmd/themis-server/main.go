@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -29,7 +30,7 @@ var (
 	store *themis.Store
 )
 
-var ()
+type Handler func(s *discordgo.Session, i *discordgo.InteractionCreate)
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT)
@@ -59,140 +60,120 @@ func main() {
 
 	commands := []*discordgo.ApplicationCommand{
 		{
-			Name:        "themis",
-			Description: "Call dibs on EU4 provinces",
+			Name:        "ping",
+			Description: "Ping Themis",
+			Type:        discordgo.ChatApplicationCommand,
+		},
+		{
+			Name:        "list-claims",
+			Description: "List current claims",
+			Type:        discordgo.ChatApplicationCommand,
+		},
+		{
+			Name:        "claim",
+			Description: "Take a claim on provinces",
 			Type:        discordgo.ChatApplicationCommand,
 			Options: []*discordgo.ApplicationCommandOption{
 				{
-					Name:        "ping",
-					Description: "Ping Themis",
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "claim-type",
+					Description: "one of `area`, `region` or `trade`",
+					Type:        discordgo.ApplicationCommandOptionString,
 				},
 				{
-					Name:        "list-claims",
-					Description: "List current claims",
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
-				},
-				{
-					Name:        "claim",
-					Description: "Take a claim on provinces",
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
-					Options: []*discordgo.ApplicationCommandOption{
-						{
-							Name:        "claim-type",
-							Description: "one of `area`, `region` or `trade`",
-							Type:        discordgo.ApplicationCommandOptionString,
-						},
-						{
-							Name:        "name",
-							Description: "the name of zone claimed",
-							Type:        discordgo.ApplicationCommandOptionString,
-						},
-					},
+					Name:        "name",
+					Description: "the name of zone claimed",
+					Type:        discordgo.ApplicationCommandOptionString,
 				},
 			},
 		},
 	}
-	handlers := map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-		"themis": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			options := i.ApplicationCommandData().Options
-
-			switch options[0].Name {
-			case "ping":
+	handlers := map[string]Handler{
+		"ping": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "Pong",
+				},
+			})
+			if err != nil {
+				log.Println("[error] failed to respond to command:", err)
+			}
+		},
+		"list-claims": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			claims, err := store.ListClaims(ctx)
+			if err != nil {
 				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
-						Content: "Pong",
+						Content: "Oops, something went wrong! :(",
 					},
 				})
 				if err != nil {
 					log.Println("[error] failed to respond to command:", err)
 				}
-			case "list-claims":
-				claims, err := store.ListClaims(ctx)
-				if err != nil {
-					err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-						Type: discordgo.InteractionResponseChannelMessageWithSource,
-						Data: &discordgo.InteractionResponseData{
-							Content: "Oops, something went wrong! :(",
-						},
-					})
-					if err != nil {
-						log.Println("[error] failed to respond to command:", err)
-					}
-				}
+			}
 
-				sb := strings.Builder{}
-				sb.WriteString(fmt.Sprintf("There are currently %d claims:\n", len(claims)))
-				for _, c := range claims {
-					sb.WriteString(fmt.Sprintf("%s\n", c))
-				}
+			sb := strings.Builder{}
+			sb.WriteString(fmt.Sprintf("There are currently %d claims:\n", len(claims)))
+			sb.WriteString("```\n")
+			sb.WriteString(formatClaimsTable(claims))
+			sb.WriteString("```\n")
 
+			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: sb.String(),
+				},
+			})
+			if err != nil {
+				log.Println("[error] failed to respond to command:", err)
+			}
+		},
+		"claim": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			opts := i.ApplicationCommandData().Options
+			claimType, err := themis.ClaimTypeFromString(opts[0].StringValue())
+			if err != nil {
 				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
-						Content: sb.String(),
+						Content: "You can only take claims of types `area`, `region` or `trade`",
 					},
 				})
 				if err != nil {
 					log.Println("[error] failed to respond to command:", err)
 				}
-			case "claim":
-				opts := options[0].Options
-				claimType, err := themis.ClaimTypeFromString(opts[0].StringValue())
-				if err != nil {
-					err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-						Type: discordgo.InteractionResponseChannelMessageWithSource,
-						Data: &discordgo.InteractionResponseData{
-							Content: "You can only take claims of types `area`, `region` or `trade`",
-						},
-					})
-					if err != nil {
-						log.Println("[error] failed to respond to command:", err)
-					}
-					return
-				}
-				name := opts[1].StringValue()
+				return
+			}
+			name := opts[1].StringValue()
 
-				player := i.Member.Nick
-				if player == "" {
-					player = i.Member.User.Username
-				}
+			player := i.Member.Nick
+			if player == "" {
+				player = i.Member.User.Username
+			}
 
-				err = store.Claim(ctx, player, name, claimType)
-				if err != nil {
-					fmt.Printf("[error]: failed to acquire claim: %s\n", err)
-					err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-						Type: discordgo.InteractionResponseChannelMessageWithSource,
-						Data: &discordgo.InteractionResponseData{
-							Content: "failed to acquire claim :(",
-						},
-					})
-					if err != nil {
-						log.Println("[error] failed to respond to command:", err)
-					}
-					return
-				}
-
+			err = store.Claim(ctx, player, name, claimType)
+			if err != nil {
+				fmt.Printf("[error]: failed to acquire claim: %s\n", err)
 				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
-						Content: fmt.Sprintf("Claimed %s for %s!", name, player),
+						Content: "failed to acquire claim :(",
 					},
 				})
 				if err != nil {
 					log.Println("[error] failed to respond to command:", err)
 				}
-			default:
-				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseChannelMessageWithSource,
-					Data: &discordgo.InteractionResponseData{
-						Content: fmt.Sprintf("Oops, I don't know any `%s` action", options[0].Name),
-					},
-				})
-				if err != nil {
-					log.Println("[error] failed to respond to command:", err)
-				}
+				return
+			}
+
+			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf("Claimed %s for %s!", name, player),
+				},
+			})
+			if err != nil {
+				log.Println("[error] failed to respond to command:", err)
 			}
 		},
 	}
@@ -245,7 +226,7 @@ func touchDbFile(path string) error {
 	return nil
 }
 
-func registerHandlers(sess *discordgo.Session, handlers map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate)) {
+func registerHandlers(sess *discordgo.Session, handlers map[string]Handler) {
 	sess.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
@@ -254,4 +235,33 @@ func registerHandlers(sess *discordgo.Session, handlers map[string]func(s *disco
 			h(s, i)
 		}
 	})
+}
+
+const TABLE_PATTERN = "| %-*s | %-*s | %-*s | %-*s |\n"
+
+func formatClaimsTable(claims []themis.Claim) string {
+	sb := strings.Builder{}
+	maxLengths := []int{2, 6, 4, 4} // id, player, type, name
+	for _, c := range claims {
+		sid := strconv.Itoa(c.ID)
+		if len(sid) > maxLengths[0] {
+			maxLengths[0] = len(sid)
+		}
+		if len(c.Player) > maxLengths[1] {
+			maxLengths[1] = len(c.Player)
+		}
+		if len(c.Type) > maxLengths[2] {
+			maxLengths[2] = len(c.Type)
+		}
+		if len(c.Name) > maxLengths[3] {
+			maxLengths[3] = len(c.Name)
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf(TABLE_PATTERN, maxLengths[0], "ID", maxLengths[1], "Player", maxLengths[2], "Type", maxLengths[3], "Name"))
+	sb.WriteString(fmt.Sprintf(TABLE_PATTERN, maxLengths[0], strings.Repeat("-", maxLengths[0]), maxLengths[1], strings.Repeat("-", maxLengths[1]), maxLengths[2], strings.Repeat("-", maxLengths[2]), maxLengths[3], strings.Repeat("-", maxLengths[3])))
+	for _, c := range claims {
+		sb.WriteString(fmt.Sprintf(TABLE_PATTERN, maxLengths[0], strconv.Itoa(c.ID), maxLengths[1], c.Player, maxLengths[2], c.Type, maxLengths[3], c.Name))
+	}
+	return sb.String()
 }
