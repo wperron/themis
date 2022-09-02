@@ -153,6 +153,26 @@ func main() {
 
 			err = store.Claim(ctx, player, name, claimType)
 			if err != nil {
+				conflict, ok := err.(themis.ErrConflict)
+				if ok {
+					sb := strings.Builder{}
+					sb.WriteString("Some provinces are already claimed:\n```\n")
+					for _, c := range conflict.Conflicts {
+						sb.WriteString(fmt.Sprintf("  - %s\n", c))
+					}
+					sb.WriteString("```\n")
+
+					err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: sb.String(),
+						},
+					})
+					if err != nil {
+						log.Println("[error] failed to respond to command:", err)
+					}
+					return
+				}
 				fmt.Printf("[error]: failed to acquire claim: %s\n", err)
 				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
