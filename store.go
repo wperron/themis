@@ -87,15 +87,15 @@ func (s *Store) Claim(ctx context.Context, player, province string, claimType Cl
 
 	// Check conflicts
 	stmt, err := s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT provinces.name FROM provinces WHERE provinces.%s = ? and provinces.name in (
-	SELECT provinces.name FROM claims LEFT JOIN provinces ON claims.val = provinces.trade_node WHERE claims.claim_type = 'trade'
-	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.region WHERE claims.claim_type = 'region'
-	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.area WHERE claims.claim_type = 'area'
+	SELECT provinces.name FROM claims LEFT JOIN provinces ON claims.val = provinces.trade_node WHERE claims.claim_type = 'trade' AND claims.player IS NOT ?
+	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.region WHERE claims.claim_type = 'region' AND claims.player IS NOT ?
+	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.area WHERE claims.claim_type = 'area' AND claims.player IS NOT ?
 )`, claimTypeToColumn[claimType]))
 	if err != nil {
 		return fmt.Errorf("failed to prepare conflicts query: %w", err)
 	}
 
-	rows, err := stmt.QueryContext(ctx, province)
+	rows, err := stmt.QueryContext(ctx, province, player, player, player)
 	if err != nil {
 		return fmt.Errorf("failed to get conflicting provinces: %w", err)
 	}

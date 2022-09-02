@@ -50,6 +50,15 @@ func TestStore_Claim(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "same player overlapp",
+			args: args{
+				player:    "foo", // 'foo' has a claim on Italy, which has overlapping provinces
+				province:  "Genoa",
+				claimType: CLAIM_TYPE_TRADE,
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
