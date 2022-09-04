@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -216,6 +217,14 @@ func main() {
 	}
 
 	log.Printf("registered %d commands\n", len(registeredCommands))
+
+	go func() {
+		if err := serve(":8080"); err != nil {
+			log.Printf("[error]: %s\n", err)
+		}
+		cancel()
+	}()
+
 	<-ctx.Done()
 
 	for _, c := range registeredCommands {
@@ -284,4 +293,13 @@ func formatClaimsTable(claims []themis.Claim) string {
 		sb.WriteString(fmt.Sprintf(TABLE_PATTERN, maxLengths[0], strconv.Itoa(c.ID), maxLengths[1], c.Player, maxLengths[2], c.Type, maxLengths[3], c.Name))
 	}
 	return sb.String()
+}
+
+func serve(address string) error {
+	http.Handle("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	return http.ListenAndServe(address, nil)
 }

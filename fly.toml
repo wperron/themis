@@ -3,7 +3,9 @@
 app = "themis"
 kill_signal = "SIGINT"
 kill_timeout = 5
-processes = []
+
+[processes]
+themis = "/usr/local/bin/themis-server"
 
 [env]
 
@@ -13,8 +15,8 @@ processes = []
 
 [[services]]
   http_checks = []
-  internal_port = 80
-  processes = ["app"]
+  internal_port = 8080
+  processes = ["themis"]
   protocol = "tcp"
   script_checks = []
   [services.concurrency]
