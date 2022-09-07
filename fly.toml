@@ -7,7 +7,7 @@ processes = []
 
 [env]
 DISCORD_APP_ID = "1014881815921705030"
-DISCORD_GUILD_ID = "1014883118764806164"
+DISCORD_GUILD_ID = "375417755777892353"
 
 [experimental]
   allowed_public_ports = []
