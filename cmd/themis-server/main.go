@@ -59,6 +59,8 @@ func main() {
 		log.Fatalln("fatal error: failed to create discord app:", err)
 	}
 
+	log.Printf("connected to discord: app_id=%s, guild_id=%s\n", DISCORD_APP_ID, DISCORD_GUILD_ID)
+
 	commands := []*discordgo.ApplicationCommand{
 		{
 			Name:        "ping",
@@ -298,7 +300,6 @@ func formatClaimsTable(claims []themis.Claim) string {
 func serve(address string) error {
 	http.Handle("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
-		w.WriteHeader(http.StatusOK)
 	}))
 
 	return http.ListenAndServe(address, nil)
