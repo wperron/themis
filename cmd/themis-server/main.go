@@ -19,10 +19,7 @@ import (
 )
 
 const (
-	DB_FILE          = "prod.db"
-	CONN_STRING      = "file:" + DB_FILE + "?cache=shared&mode=rw&_journal_mode=WAL"
-	DISCORD_APP_ID   = "1014881815921705030"
-	DISCORD_GUILD_ID = "1014883118764806164"
+	CONN_STRING_PATTERN = "file:%s?cache=shared&mode=rw&_journal_mode=WAL"
 )
 
 var (
@@ -44,7 +41,9 @@ func main() {
 		log.Fatalln("fatal error: failed to touch database file:", err)
 	}
 
-	store, err = themis.NewStore(CONN_STRING)
+	connString := fmt.Sprintf(CONN_STRING_PATTERN, *dbFile)
+
+	store, err = themis.NewStore(connString)
 	if err != nil {
 		log.Fatalln("fatal error: failed to initialize database:", err)
 	}
@@ -54,12 +53,22 @@ func main() {
 		log.Fatalln("fatal error: no auth token found at DISCORD_TOKEN env var")
 	}
 
+	appId, ok := os.LookupEnv("DISCORD_APP_ID")
+	if !ok {
+		log.Fatalln("fatal error: no app id found at DISCORD_TOKEN env var")
+	}
+
+	guildId, ok := os.LookupEnv("DISCORD_GUILD_ID")
+	if !ok {
+		log.Fatalln("fatal error: no guild id found at DISCORD_TOKEN env var")
+	}
+
 	discord, err := discordgo.New(fmt.Sprintf("Bot %s", authToken))
 	if err != nil {
 		log.Fatalln("fatal error: failed to create discord app:", err)
 	}
 
-	log.Printf("connected to discord: app_id=%s, guild_id=%s\n", DISCORD_APP_ID, DISCORD_GUILD_ID)
+	log.Printf("connected to discord: app_id=%s, guild_id=%s\n", appId, guildId)
 
 	commands := []*discordgo.ApplicationCommand{
 		{
@@ -211,7 +220,7 @@ func main() {
 
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(commands))
 	for i, c := range commands {
-		command, err := discord.ApplicationCommandCreate(DISCORD_APP_ID, DISCORD_GUILD_ID, c)
+		command, err := discord.ApplicationCommandCreate(appId, guildId, c)
 		if err != nil {
 			log.Fatalln("fatal error: failed to register command:", err)
 		}
@@ -230,7 +239,7 @@ func main() {
 	<-ctx.Done()
 
 	for _, c := range registeredCommands {
-		err = discord.ApplicationCommandDelete(DISCORD_APP_ID, DISCORD_GUILD_ID, c.ID)
+		err = discord.ApplicationCommandDelete(appId, guildId, c.ID)
 		if err != nil {
 			log.Printf("[error]: failed to delete command: %s\n", err)
 		}
