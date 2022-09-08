@@ -144,6 +144,40 @@ func (s *Store) Claim(ctx context.Context, player, province string, claimType Cl
 	return nil
 }
 
+func (s *Store) ListAvailability(ctx context.Context, claimType ClaimType, search ...string) ([]string, error) {
+	queryParams := []any{string(claimType)}
+	queryPattern := `SELECT DISTINCT(provinces.%[1]s)
+	FROM provinces LEFT JOIN claims ON provinces.%[1]s = claims.val AND claims.claim_type = ?
+	WHERE claims.val IS NULL
+	AND provinces.typ = 'Land'`
+	if len(search) > 0 && search[0] != "" {
+		// only take one search param, ignore the rest
+		queryPattern += `AND provinces.%[1]s LIKE ?`
+		queryParams = append(queryParams, fmt.Sprintf("%%%s%%", search[0]))
+	}
+
+	stmt, err := s.db.PrepareContext(ctx, fmt.Sprintf(queryPattern, claimTypeToColumn[claimType]))
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare query: %w", err)
+	}
+
+	rows, err := stmt.QueryContext(ctx, queryParams...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	avail := make([]string, 0)
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, fmt.Errorf("failed to scan rows: %w", err)
+		}
+		avail = append(avail, s)
+	}
+
+	return avail, nil
+}
+
 func (s *Store) ListClaims(ctx context.Context) ([]Claim, error) {
 	stmt, err := s.db.PrepareContext(ctx, `SELECT id, player, claim_type, val FROM claims`)
 	if err != nil {

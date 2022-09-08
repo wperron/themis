@@ -3940,7 +3940,7 @@ INSERT OR IGNORE INTO provinces VALUES('4937','Lau','3','1','1','1','','Polynesi
 INSERT OR IGNORE INTO provinces VALUES('4938','Vanua Levu','5','2','2','1','','Polynesian Triangle','','Land','Oceania','Oceania','Oceania','Fiji');
 INSERT OR IGNORE INTO provinces VALUES('4939','Te Urewera','8','3','4','1','','Polynesian Triangle','','Land','Oceania','Oceania','Oceania','Te Ika a Maui Waho');
 INSERT OR IGNORE INTO provinces VALUES('4940','Lake Tulare','','','','','','','','Lake','','','','');
-INSERT OR IGNORE INTO provinces VALUES('4941','Lake Cahuilla','','','','','','','','Lake','','','',NULL);
+INSERT OR IGNORE INTO provinces VALUES('4941','Lake Cahuilla','','','','','','','','Lake','','','','');
 
 CREATE TABLE IF NOT EXISTS claim_types (
     claim_type TEXT PRIMARY KEY

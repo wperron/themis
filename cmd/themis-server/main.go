@@ -90,11 +90,17 @@ func main() {
 					Name:        "claim-type",
 					Description: "one of `area`, `region` or `trade`",
 					Type:        discordgo.ApplicationCommandOptionString,
+					Choices: []*discordgo.ApplicationCommandOptionChoice{
+						{Name: "Area", Value: themis.CLAIM_TYPE_AREA},
+						{Name: "Region", Value: themis.CLAIM_TYPE_REGION},
+						{Name: "Trade Node", Value: themis.CLAIM_TYPE_TRADE},
+					},
 				},
 				{
-					Name:        "name",
-					Description: "the name of zone claimed",
-					Type:        discordgo.ApplicationCommandOptionString,
+					Name:         "name",
+					Description:  "the name of zone claimed",
+					Type:         discordgo.ApplicationCommandOptionString,
+					Autocomplete: true,
 				},
 			},
 		},
@@ -142,6 +148,11 @@ func main() {
 			}
 		},
 		"claim": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			if i.Type == discordgo.InteractionApplicationCommandAutocomplete {
+				handleClaimAutocomplete(ctx, store, s, i)
+				return
+			}
+
 			opts := i.ApplicationCommandData().Options
 			claimType, err := themis.ClaimTypeFromString(opts[0].StringValue())
 			if err != nil {
@@ -306,10 +317,49 @@ func formatClaimsTable(claims []themis.Claim) string {
 	return sb.String()
 }
 
+func handleClaimAutocomplete(ctx context.Context, store *themis.Store, s *discordgo.Session, i *discordgo.InteractionCreate) {
+	opts := i.ApplicationCommandData().Options
+	claimType, err := themis.ClaimTypeFromString(opts[0].StringValue())
+	if err != nil {
+		log.Printf("[error]: %s\n", err)
+		return
+	}
+
+	availability, err := store.ListAvailability(ctx, claimType, opts[1].StringValue())
+	if err != nil {
+		log.Printf("[error]: %s\n", err)
+		return
+	}
+
+	choices := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(availability))
+	for _, s := range availability {
+		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
+			Name:  s,
+			Value: s,
+		})
+	}
+
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionApplicationCommandAutocompleteResult,
+		Data: &discordgo.InteractionResponseData{
+			Choices: choices[:min(len(choices), 25)],
+		},
+	}); err != nil {
+		log.Printf("[error]: %s\n", err)
+	}
+}
+
 func serve(address string) error {
 	http.Handle("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
 	}))
 
 	return http.ListenAndServe(address, nil)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
