@@ -166,6 +166,19 @@ func main() {
 			}
 
 			opts := i.ApplicationCommandData().Options
+			if len(opts) != 2 {
+				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "`claim-type` and `name` are mandatory parameters",
+					},
+				})
+				if err != nil {
+					log.Println("[error] failed to respond to command:", err)
+				}
+				return
+			}
+
 			claimType, err := themis.ClaimTypeFromString(opts[0].StringValue())
 			if err != nil {
 				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
