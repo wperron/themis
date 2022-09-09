@@ -104,6 +104,18 @@ func main() {
 				},
 			},
 		},
+		{
+			Name:        "delete-claim",
+			Description: "Release one of your claims",
+			Type:        discordgo.ChatApplicationCommand,
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Name:        "id",
+					Description: "numerical ID for the claim",
+					Type:        discordgo.ApplicationCommandOptionInteger,
+				},
+			},
+		},
 	}
 	handlers := map[string]Handler{
 		"ping": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -213,6 +225,40 @@ func main() {
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
 					Content: fmt.Sprintf("Claimed %s for %s!", name, player),
+				},
+			})
+			if err != nil {
+				log.Println("[error] failed to respond to command:", err)
+			}
+		},
+		"delete-claim": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			id := i.ApplicationCommandData().Options[0]
+			nick := i.Member.Nick
+			if nick == "" {
+				nick = i.Member.User.Username
+			}
+			err := store.DeleteClaim(ctx, int(id.IntValue()), nick)
+			if err != nil {
+				msg := "Oops, something went wrong :( blame @wperron"
+				if errors.Is(err, themis.ErrNoSuchClaim) {
+					msg = err.Error()
+				}
+				log.Printf("[error]: %s\n", err)
+				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: msg,
+					},
+				})
+				if err != nil {
+					log.Println("[error] failed to respond to command:", err)
+				}
+			}
+
+			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "Got it chief.",
 				},
 			})
 			if err != nil {

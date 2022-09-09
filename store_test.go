@@ -9,8 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const TEST_CONN_STRING = "file::memory:?cache=shared"
+
 func TestStore_Claim(t *testing.T) {
-	store, err := NewStore("file::memory:?cache=shared")
+	store, err := NewStore(TEST_CONN_STRING)
 	assert.NoError(t, err)
 
 	type args struct {
@@ -70,7 +72,7 @@ func TestStore_Claim(t *testing.T) {
 }
 
 func TestAvailability(t *testing.T) {
-	store, err := NewStore("file::memory:?cache=shared")
+	store, err := NewStore(TEST_CONN_STRING)
 	assert.NoError(t, err)
 
 	store.Claim(context.TODO(), "foo", "Genoa", CLAIM_TYPE_TRADE)
@@ -114,4 +116,20 @@ func TestAvailability(t *testing.T) {
 	availability, err = store.ListAvailability(context.TODO(), CLAIM_TYPE_AREA, "bay")
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(availability)) // availability for areas should be the same as before
+}
+
+func TestDeleteClaim(t *testing.T) {
+	store, err := NewStore(TEST_CONN_STRING)
+	assert.NoError(t, err)
+
+	store.Claim(context.TODO(), "foo", "Genoa", CLAIM_TYPE_TRADE)
+	store.Claim(context.TODO(), "bar", "Balkans", CLAIM_TYPE_REGION)
+	store.Claim(context.TODO(), "baz", "English Channel", CLAIM_TYPE_TRADE)
+
+	err = store.DeleteClaim(context.TODO(), 1, "foo")
+	assert.NoError(t, err)
+
+	err = store.DeleteClaim(context.TODO(), 2, "foo")
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrNoSuchClaim)
 }

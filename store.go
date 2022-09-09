@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -267,4 +268,27 @@ func (s *Store) DescribeClaim(ctx context.Context, ID int) (ClaimDetail, error) 
 		Claim:     c,
 		Provinces: provinces,
 	}, nil
+}
+
+var ErrNoSuchClaim = errors.New("No such claim found for player")
+
+func (s *Store) DeleteClaim(ctx context.Context, ID int, player string) error {
+	stmt, err := s.db.PrepareContext(ctx, "DELETE FROM claims WHERE id = ? AND player = ?")
+	if err != nil {
+		return fmt.Errorf("failed to prepare query: %w", err)
+	}
+
+	res, err := stmt.ExecContext(ctx, ID, player)
+	if err != nil {
+		return fmt.Errorf("failed to delete claim ID %d: %w", ID, err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get affected rows: %w", err)
+	}
+	if rows == 0 {
+		return ErrNoSuchClaim
+	}
+	return nil
 }
