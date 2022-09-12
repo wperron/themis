@@ -3952,6 +3952,7 @@ CREATE TABLE IF NOT EXISTS claims (
     player TEXT,
     claim_type TEXT,
     val TEXT,
+    userid TEXT,
     FOREIGN KEY(claim_type) REFERENCES claim_types(claim_type)
 );
 

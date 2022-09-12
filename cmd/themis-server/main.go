@@ -199,7 +199,9 @@ func main() {
 				player = i.Member.User.Username
 			}
 
-			err = store.Claim(ctx, player, name, claimType)
+			userId := i.Member.User.ID
+
+			_, err = store.Claim(ctx, userId, player, name, claimType)
 			if err != nil {
 				conflict, ok := err.(themis.ErrConflict)
 				if ok {
@@ -246,11 +248,8 @@ func main() {
 		},
 		"delete-claim": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			id := i.ApplicationCommandData().Options[0]
-			nick := i.Member.Nick
-			if nick == "" {
-				nick = i.Member.User.Username
-			}
-			err := store.DeleteClaim(ctx, int(id.IntValue()), nick)
+			userId := i.Member.User.ID
+			err := store.DeleteClaim(ctx, int(id.IntValue()), userId)
 			if err != nil {
 				msg := "Oops, something went wrong :( blame @wperron"
 				if errors.Is(err, themis.ErrNoSuchClaim) {

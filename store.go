@@ -79,26 +79,26 @@ func NewStore(conn string) (*Store, error) {
 	}, nil
 }
 
-func (s *Store) Claim(ctx context.Context, player, province string, claimType ClaimType) error {
+func (s *Store) Claim(ctx context.Context, userId, player, province string, claimType ClaimType) (int, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Commit()
 
 	// Check conflicts
 	stmt, err := s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT provinces.name FROM provinces WHERE provinces.%s = ? and provinces.name in (
-	SELECT provinces.name FROM claims LEFT JOIN provinces ON claims.val = provinces.trade_node WHERE claims.claim_type = 'trade' AND claims.player IS NOT ?
-	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.region WHERE claims.claim_type = 'region' AND claims.player IS NOT ?
-	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.area WHERE claims.claim_type = 'area' AND claims.player IS NOT ?
+	SELECT provinces.name FROM claims LEFT JOIN provinces ON claims.val = provinces.trade_node WHERE claims.claim_type = 'trade' AND claims.userid IS NOT ?
+	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.region WHERE claims.claim_type = 'region' AND claims.userid IS NOT ?
+	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.area WHERE claims.claim_type = 'area' AND claims.userid IS NOT ?
 )`, claimTypeToColumn[claimType]))
 	if err != nil {
-		return fmt.Errorf("failed to prepare conflicts query: %w", err)
+		return 0, fmt.Errorf("failed to prepare conflicts query: %w", err)
 	}
 
-	rows, err := stmt.QueryContext(ctx, province, player, player, player)
+	rows, err := stmt.QueryContext(ctx, province, userId, userId, userId)
 	if err != nil {
-		return fmt.Errorf("failed to get conflicting provinces: %w", err)
+		return 0, fmt.Errorf("failed to get conflicting provinces: %w", err)
 	}
 
 	conflicts := make([]string, 0)
@@ -106,43 +106,48 @@ func (s *Store) Claim(ctx context.Context, player, province string, claimType Cl
 		var p string
 		err = rows.Scan(&p)
 		if err != nil {
-			return fmt.Errorf("failed to scan row: %w", err)
+			return 0, fmt.Errorf("failed to scan row: %w", err)
 		}
 		conflicts = append(conflicts, p)
 	}
 
 	if len(conflicts) > 0 {
-		return ErrConflict{Conflicts: conflicts}
+		return 0, ErrConflict{Conflicts: conflicts}
 	}
 
 	// check that provided name matches the claim type
 	stmt, err = s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT COUNT(1) FROM provinces WHERE provinces.%s = ?`, claimTypeToColumn[claimType]))
 	if err != nil {
-		return fmt.Errorf("failed to prepare count query: %w", err)
+		return 0, fmt.Errorf("failed to prepare count query: %w", err)
 	}
 
 	row := stmt.QueryRowContext(ctx, province)
 	var count int
 	err = row.Scan(&count)
 	if err != nil {
-		return fmt.Errorf("failed to scan: %w", err)
+		return 0, fmt.Errorf("failed to scan: %w", err)
 	}
 
 	if count == 0 {
-		return fmt.Errorf("found no provinces for %s named %s", claimType, province)
+		return 0, fmt.Errorf("found no provinces for %s named %s", claimType, province)
 	}
 
-	stmt, err = s.db.PrepareContext(ctx, "INSERT INTO claims (player, claim_type, val) VALUES (?, ?, ?)")
+	stmt, err = s.db.PrepareContext(ctx, "INSERT INTO claims (player, claim_type, val, userid) VALUES (?, ?, ?, ?)")
 	if err != nil {
-		return fmt.Errorf("failed to prepare claim query: %w", err)
+		return 0, fmt.Errorf("failed to prepare claim query: %w", err)
 	}
 
-	_, err = stmt.ExecContext(ctx, player, claimType, province)
+	res, err := stmt.ExecContext(ctx, player, claimType, province, userId)
 	if err != nil {
-		return fmt.Errorf("failed to insert claim: %w", err)
+		return 0, fmt.Errorf("failed to insert claim: %w", err)
 	}
 
-	return nil
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get last ID: %w", err)
+	}
+
+	return int(id), nil
 }
 
 func (s *Store) ListAvailability(ctx context.Context, claimType ClaimType, search ...string) ([]string, error) {
@@ -270,15 +275,15 @@ func (s *Store) DescribeClaim(ctx context.Context, ID int) (ClaimDetail, error) 
 	}, nil
 }
 
-var ErrNoSuchClaim = errors.New("No such claim found for player")
+var ErrNoSuchClaim = errors.New("no such claim found for player")
 
-func (s *Store) DeleteClaim(ctx context.Context, ID int, player string) error {
-	stmt, err := s.db.PrepareContext(ctx, "DELETE FROM claims WHERE id = ? AND player = ?")
+func (s *Store) DeleteClaim(ctx context.Context, ID int, userId string) error {
+	stmt, err := s.db.PrepareContext(ctx, "DELETE FROM claims WHERE id = ? AND userid = ?")
 	if err != nil {
 		return fmt.Errorf("failed to prepare query: %w", err)
 	}
 
-	res, err := stmt.ExecContext(ctx, ID, player)
+	res, err := stmt.ExecContext(ctx, ID, userId)
 	if err != nil {
 		return fmt.Errorf("failed to delete claim ID %d: %w", ID, err)
 	}
