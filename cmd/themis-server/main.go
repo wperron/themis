@@ -105,6 +105,18 @@ func main() {
 			},
 		},
 		{
+			Name:        "describe-claim",
+			Description: "Get details on a claim",
+			Type:        discordgo.ChatApplicationCommand,
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Name:        "id",
+					Description: "Numerical ID for the claim",
+					Type:        discordgo.ApplicationCommandOptionInteger,
+				},
+			},
+		},
+		{
 			Name:        "delete-claim",
 			Description: "Release one of your claims",
 			Type:        discordgo.ChatApplicationCommand,
@@ -246,6 +258,37 @@ func main() {
 				log.Println("[error] failed to respond to command:", err)
 			}
 		},
+		"describe-claim": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			id := i.ApplicationCommandData().Options[0]
+			detail, err := store.DescribeClaim(ctx, int(id.IntValue()))
+			if err != nil {
+				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "woops, something went wrong :(",
+					},
+				})
+				if err != nil {
+					log.Println("[error] failed to respond to command:", err)
+				}
+			}
+
+			sb := strings.Builder{}
+			sb.WriteString(fmt.Sprintf("#%d %s %s (%s)\n", detail.ID, detail.Name, detail.Type, detail.Player))
+			for _, p := range detail.Provinces {
+				sb.WriteString(fmt.Sprintf(" - %s\n", p))
+			}
+
+			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: sb.String(),
+				},
+			})
+			if err != nil {
+				log.Println("[error] failed to respond to command:", err)
+			}
+		},
 		"delete-claim": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			id := i.ApplicationCommandData().Options[0]
 			userId := i.Member.User.ID
@@ -253,7 +296,7 @@ func main() {
 			if err != nil {
 				msg := "Oops, something went wrong :( blame @wperron"
 				if errors.Is(err, themis.ErrNoSuchClaim) {
-					msg = err.Error()
+					msg = fmt.Sprintf("Claim #%d not found for %s", id.IntValue(), i.Member.Nick)
 				}
 				log.Printf("[error]: %s\n", err)
 				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -359,8 +402,10 @@ func formatClaimsTable(claims []themis.Claim) string {
 		if len(c.Player) > maxLengths[1] {
 			maxLengths[1] = len(c.Player)
 		}
-		if len(c.Type) > maxLengths[2] {
-			maxLengths[2] = len(c.Type)
+		// The raw claim value is different from the formatted string
+		strType := c.Type.String()
+		if len(strType) > maxLengths[2] {
+			maxLengths[2] = len(strType)
 		}
 		if len(c.Name) > maxLengths[3] {
 			maxLengths[3] = len(c.Name)

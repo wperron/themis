@@ -148,3 +148,19 @@ func TestDeleteClaim(t *testing.T) {
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrNoSuchClaim)
 }
+
+func TestDescribeClaim(t *testing.T) {
+	store, err := NewStore(TEST_CONN_STRING)
+	assert.NoError(t, err)
+
+	id, err := store.Claim(context.TODO(), "000000000000000001", "foo", "Genoa", CLAIM_TYPE_TRADE)
+	assert.NoError(t, err)
+
+	detail, err := store.DescribeClaim(context.TODO(), id)
+	assert.NoError(t, err)
+	assert.Equal(t, "Genoa", detail.Name)
+	assert.Contains(t, detail.Provinces, "Saluzzo")
+
+	detail, err = store.DescribeClaim(context.TODO(), 9999)
+	assert.ErrorIs(t, err, ErrNoSuchClaim)
+}

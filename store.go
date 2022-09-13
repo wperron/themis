@@ -28,6 +28,18 @@ func ClaimTypeFromString(s string) (ClaimType, error) {
 	return "", fmt.Errorf("no claim type matching '%s'", s)
 }
 
+func (ct ClaimType) String() string {
+	switch ct {
+	case CLAIM_TYPE_AREA:
+		return "Area"
+	case CLAIM_TYPE_REGION:
+		return "Region"
+	case CLAIM_TYPE_TRADE:
+		return "Trade Node"
+	}
+	return ""
+}
+
 const (
 	CLAIM_TYPE_AREA   = "area"
 	CLAIM_TYPE_REGION = "region"
@@ -240,6 +252,9 @@ func (s *Store) DescribeClaim(ctx context.Context, ID int) (ClaimDetail, error) 
 	c := Claim{}
 	var rawType string
 	err = row.Scan(&c.ID, &c.Player, &rawType, &c.Name)
+	if err == sql.ErrNoRows {
+		return ClaimDetail{}, ErrNoSuchClaim
+	}
 	if err != nil {
 		return ClaimDetail{}, fmt.Errorf("failed to scan row: %w", err)
 	}
@@ -275,7 +290,7 @@ func (s *Store) DescribeClaim(ctx context.Context, ID int) (ClaimDetail, error) 
 	}, nil
 }
 
-var ErrNoSuchClaim = errors.New("no such claim found for player")
+var ErrNoSuchClaim = errors.New("no such claim")
 
 func (s *Store) DeleteClaim(ctx context.Context, ID int, userId string) error {
 	stmt, err := s.db.PrepareContext(ctx, "DELETE FROM claims WHERE id = ? AND userid = ?")
