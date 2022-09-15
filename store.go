@@ -312,3 +312,11 @@ func (s *Store) DeleteClaim(ctx context.Context, ID int, userId string) error {
 	}
 	return nil
 }
+
+func (s *Store) Flush(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM claims;")
+	if err != nil {
+		return fmt.Errorf("failed to execute delete query: %w", err)
+	}
+	return nil
+}

@@ -164,3 +164,19 @@ func TestDescribeClaim(t *testing.T) {
 	detail, err = store.DescribeClaim(context.TODO(), 9999)
 	assert.ErrorIs(t, err, ErrNoSuchClaim)
 }
+
+func TestFlush(t *testing.T) {
+	store, err := NewStore(TEST_CONN_STRING)
+	assert.NoError(t, err)
+
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Genoa", CLAIM_TYPE_TRADE)
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Valencia", CLAIM_TYPE_TRADE)
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Italy", CLAIM_TYPE_REGION)
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Iberia", CLAIM_TYPE_REGION)
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Ragusa", CLAIM_TYPE_TRADE)
+
+	assert.NoError(t, store.Flush(context.TODO()))
+	claims, err := store.ListClaims(context.TODO())
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(claims))
+}

@@ -128,6 +128,11 @@ func main() {
 				},
 			},
 		},
+		{
+			Name:        "flush",
+			Description: "Remove all claims from the database and prepare for the next game!",
+			Type:        discordgo.ChatApplicationCommand,
+		},
 	}
 	handlers := map[string]Handler{
 		"ping": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -320,6 +325,33 @@ func main() {
 				log.Println("[error] failed to respond to command:", err)
 			}
 		},
+		"flush": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseModal,
+				Data: &discordgo.InteractionResponseData{
+					CustomID: "modals_flush_" + i.Interaction.Member.User.ID,
+					Title:    "Are you sure?",
+					Components: []discordgo.MessageComponent{
+						discordgo.ActionsRow{
+							Components: []discordgo.MessageComponent{
+								discordgo.TextInput{
+									CustomID:    "confirmation",
+									Label:       "Delete all claims permanently? [y/N]",
+									Style:       discordgo.TextInputShort,
+									Placeholder: "",
+									Value:       "",
+									Required:    true,
+									MinLength:   1,
+									MaxLength:   45,
+								},
+							},
+						},
+					},
+				},
+			}); err != nil {
+				log.Println("failed to respond to command:", err)
+			}
+		},
 	}
 
 	registerHandlers(discord, handlers)
@@ -383,8 +415,45 @@ func registerHandlers(sess *discordgo.Session, handlers map[string]Handler) {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
 	sess.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		if h, ok := handlers[i.ApplicationCommandData().Name]; ok {
-			h(s, i)
+		switch i.Type {
+		case discordgo.InteractionApplicationCommand:
+			if h, ok := handlers[i.ApplicationCommandData().Name]; ok {
+				h(s, i)
+			}
+		case discordgo.InteractionModalSubmit:
+			if strings.HasPrefix(i.ModalSubmitData().CustomID, "modals_flush_") {
+				sub := i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value
+				sub = strings.ToLower(sub)
+				if sub == "y" || sub == "ye" || sub == "yes" {
+					err := store.Flush(context.Background())
+					msg := "Flushed all claims!"
+					if err != nil {
+						msg = "failed to flush claims from database"
+					}
+
+					err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: msg,
+						},
+					})
+					if err != nil {
+						log.Println("[error] failed to respond to command:", err)
+					}
+					return
+				}
+
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Aborted...",
+					},
+				})
+				if err != nil {
+					log.Println("[error] failed to respond to command:", err)
+				}
+				return
+			}
 		}
 	})
 }
