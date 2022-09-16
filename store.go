@@ -64,11 +64,11 @@ func (c Claim) String() string {
 }
 
 type ErrConflict struct {
-	Conflicts []string
+	Conflicts []Conflict
 }
 
 func (ec ErrConflict) Error() string {
-	return fmt.Sprintf("found conflicting provinces: %s", strings.Join(ec.Conflicts, ", "))
+	return fmt.Sprintf("found %d conflicting provinces", len(ec.Conflicts))
 }
 
 type Store struct {
@@ -98,29 +98,9 @@ func (s *Store) Claim(ctx context.Context, userId, player, province string, clai
 	}
 	defer tx.Commit()
 
-	// Check conflicts
-	stmt, err := s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT provinces.name FROM provinces WHERE provinces.%s = ? and provinces.name in (
-	SELECT provinces.name FROM claims LEFT JOIN provinces ON claims.val = provinces.trade_node WHERE claims.claim_type = 'trade' AND claims.userid IS NOT ?
-	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.region WHERE claims.claim_type = 'region' AND claims.userid IS NOT ?
-	UNION SELECT provinces.name from claims LEFT JOIN provinces ON claims.val = provinces.area WHERE claims.claim_type = 'area' AND claims.userid IS NOT ?
-)`, claimTypeToColumn[claimType]))
+	conflicts, err := s.FindConflicts(ctx, userId, province, claimType)
 	if err != nil {
-		return 0, fmt.Errorf("failed to prepare conflicts query: %w", err)
-	}
-
-	rows, err := stmt.QueryContext(ctx, province, userId, userId, userId)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get conflicting provinces: %w", err)
-	}
-
-	conflicts := make([]string, 0)
-	for rows.Next() {
-		var p string
-		err = rows.Scan(&p)
-		if err != nil {
-			return 0, fmt.Errorf("failed to scan row: %w", err)
-		}
-		conflicts = append(conflicts, p)
+		return 0, fmt.Errorf("failed to run conflicts check: %w", err)
 	}
 
 	if len(conflicts) > 0 {
@@ -128,7 +108,7 @@ func (s *Store) Claim(ctx context.Context, userId, player, province string, clai
 	}
 
 	// check that provided name matches the claim type
-	stmt, err = s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT COUNT(1) FROM provinces WHERE provinces.%s = ?`, claimTypeToColumn[claimType]))
+	stmt, err := s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT COUNT(1) FROM provinces WHERE provinces.%s = ?`, claimTypeToColumn[claimType]))
 	if err != nil {
 		return 0, fmt.Errorf("failed to prepare count query: %w", err)
 	}
