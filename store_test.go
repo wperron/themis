@@ -68,6 +68,26 @@ func TestStore_Claim(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "case sensitivity lower",
+			args: args{
+				player:    "foo",
+				province:  "wien",
+				claimType: CLAIM_TYPE_TRADE,
+				userId:    "000000000000000001",
+			},
+			wantErr: false,
+		},
+		{
+			name: "case sensitivity upper",
+			args: args{
+				player:    "foo",
+				province:  "CONSTANTINOPLE",
+				claimType: CLAIM_TYPE_TRADE,
+				userId:    "000000000000000001",
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

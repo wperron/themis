@@ -108,12 +108,12 @@ func (s *Store) Claim(ctx context.Context, userId, player, province string, clai
 	}
 
 	// check that provided name matches the claim type
-	stmt, err := s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT COUNT(1) FROM provinces WHERE provinces.%s = ?`, claimTypeToColumn[claimType]))
+	stmt, err := s.db.PrepareContext(ctx, fmt.Sprintf(`SELECT COUNT(1) FROM provinces WHERE LOWER(provinces.%s) = ?`, claimTypeToColumn[claimType]))
 	if err != nil {
 		return 0, fmt.Errorf("failed to prepare count query: %w", err)
 	}
 
-	row := stmt.QueryRowContext(ctx, province)
+	row := stmt.QueryRowContext(ctx, strings.ToLower(province))
 	var count int
 	err = row.Scan(&count)
 	if err != nil {
