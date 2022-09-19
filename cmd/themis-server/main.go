@@ -528,7 +528,7 @@ func handleClaimAutocomplete(ctx context.Context, store *themis.Store, s *discor
 
 func serve(address string) error {
 	http.Handle("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
+		w.Write([]byte("OK")) //nolint:errcheck // this is expected to always work, 'trust me bro' guaranteed
 	}))
 
 	return http.ListenAndServe(address, nil)

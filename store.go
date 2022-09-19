@@ -96,7 +96,7 @@ func (s *Store) Claim(ctx context.Context, userId, player, province string, clai
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Commit()
+	defer tx.Commit() //nolint:errcheck
 
 	conflicts, err := s.FindConflicts(ctx, userId, province, claimType)
 	if err != nil {
