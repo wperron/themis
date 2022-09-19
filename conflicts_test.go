@@ -2,6 +2,7 @@ package themis
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func TestStore_FindConflicts(t *testing.T) {
-	store, err := NewStore(TEST_CONN_STRING)
+	store, err := NewStore(fmt.Sprintf(TEST_CONN_STRING_PATTERN, "TestStore_FindConflicts"))
 	assert.NoError(t, err)
 
 	id, err := store.Claim(context.TODO(), "000000000000000001", "foo", "Bordeaux", CLAIM_TYPE_TRADE)

@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const TEST_CONN_STRING = "file::memory:?cache=shared"
+const TEST_CONN_STRING_PATTERN = "file:%s?mode=memory&cache=shared"
 
 func TestStore_Claim(t *testing.T) {
-	store, err := NewStore(TEST_CONN_STRING)
+	store, err := NewStore(fmt.Sprintf(TEST_CONN_STRING_PATTERN, "TestStore_Claim"))
 	assert.NoError(t, err)
 
 	type args struct {
@@ -78,7 +78,7 @@ func TestStore_Claim(t *testing.T) {
 }
 
 func TestAvailability(t *testing.T) {
-	store, err := NewStore(TEST_CONN_STRING)
+	store, err := NewStore(fmt.Sprintf(TEST_CONN_STRING_PATTERN, "TestAvailability"))
 	assert.NoError(t, err)
 
 	store.Claim(context.TODO(), "000000000000000001", "foo", "Genoa", CLAIM_TYPE_TRADE)
@@ -125,9 +125,8 @@ func TestAvailability(t *testing.T) {
 }
 
 func TestDeleteClaim(t *testing.T) {
-	store, err := NewStore(TEST_CONN_STRING)
+	store, err := NewStore(fmt.Sprintf(TEST_CONN_STRING_PATTERN, "TestDeleteClaim"))
 	assert.NoError(t, err)
-
 	// make sure all claims are gone, this is due to how the in-memory database
 	// with a shared cache interacts with other tests running in parallel
 	_, err = store.db.ExecContext(context.TODO(), "DELETE FROM claims")
@@ -150,7 +149,7 @@ func TestDeleteClaim(t *testing.T) {
 }
 
 func TestDescribeClaim(t *testing.T) {
-	store, err := NewStore(TEST_CONN_STRING)
+	store, err := NewStore(fmt.Sprintf(TEST_CONN_STRING_PATTERN, "TestDescribeClaim"))
 	assert.NoError(t, err)
 
 	id, err := store.Claim(context.TODO(), "000000000000000001", "foo", "Genoa", CLAIM_TYPE_TRADE)
@@ -166,7 +165,7 @@ func TestDescribeClaim(t *testing.T) {
 }
 
 func TestFlush(t *testing.T) {
-	store, err := NewStore(TEST_CONN_STRING)
+	store, err := NewStore(fmt.Sprintf(TEST_CONN_STRING_PATTERN, "TestFlush"))
 	assert.NoError(t, err)
 
 	store.Claim(context.TODO(), "000000000000000001", "foo", "Genoa", CLAIM_TYPE_TRADE)
