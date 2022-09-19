@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog/log"
 
 	"go.wperron.io/themis"
 )
@@ -38,37 +38,37 @@ func main() {
 
 	err := touchDbFile(*dbFile)
 	if err != nil {
-		log.Fatalln("fatal error: failed to touch database file:", err)
+		log.Fatal().Err(err).Msg("failed to touch database file")
 	}
 
 	connString := fmt.Sprintf(CONN_STRING_PATTERN, *dbFile)
 
 	store, err = themis.NewStore(connString)
 	if err != nil {
-		log.Fatalln("fatal error: failed to initialize database:", err)
+		log.Fatal().Err(err).Msg("failed to initialize database")
 	}
 
 	authToken, ok := os.LookupEnv("DISCORD_TOKEN")
 	if !ok {
-		log.Fatalln("fatal error: no auth token found at DISCORD_TOKEN env var")
+		log.Fatal().Err(err).Msg("no auth token found at DISCORD_TOKEN env var")
 	}
 
 	appId, ok := os.LookupEnv("DISCORD_APP_ID")
 	if !ok {
-		log.Fatalln("fatal error: no app id found at DISCORD_TOKEN env var")
+		log.Fatal().Err(err).Msg("no app id found at DISCORD_APP_ID env var")
 	}
 
 	guildId, ok := os.LookupEnv("DISCORD_GUILD_ID")
 	if !ok {
-		log.Fatalln("fatal error: no guild id found at DISCORD_TOKEN env var")
+		log.Fatal().Err(err).Msg("no guild id found at DISCORD_GUILD_ID env var")
 	}
 
 	discord, err := discordgo.New(fmt.Sprintf("Bot %s", authToken))
 	if err != nil {
-		log.Fatalln("fatal error: failed to create discord app:", err)
+		log.Fatal().Err(err).Msg("failed to initialize discord session")
 	}
 
-	log.Printf("connected to discord: app_id=%s, guild_id=%s\n", appId, guildId)
+	log.Info().Str("app_id", appId).Str("guild_id", guildId).Msg("connected to discord")
 
 	commands := []*discordgo.ApplicationCommand{
 		{
@@ -143,12 +143,13 @@ func main() {
 				},
 			})
 			if err != nil {
-				log.Println("[error] failed to respond to command:", err)
+				log.Error().Err(err).Msg("failed to respond to interaction")
 			}
 		},
 		"list-claims": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			claims, err := store.ListClaims(ctx)
 			if err != nil {
+				log.Error().Err(err).Msg("failed to list claims")
 				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
@@ -156,7 +157,7 @@ func main() {
 					},
 				})
 				if err != nil {
-					log.Println("[error] failed to respond to command:", err)
+					log.Error().Err(err).Msg("failed to respond to interaction")
 				}
 			}
 
@@ -173,7 +174,7 @@ func main() {
 				},
 			})
 			if err != nil {
-				log.Println("[error] failed to respond to command:", err)
+				log.Error().Err(err).Msg("failed to respond to interaction")
 			}
 		},
 		"claim": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -191,13 +192,14 @@ func main() {
 					},
 				})
 				if err != nil {
-					log.Println("[error] failed to respond to command:", err)
+					log.Error().Err(err).Msg("failed to respond to interaction")
 				}
 				return
 			}
 
 			claimType, err := themis.ClaimTypeFromString(opts[0].StringValue())
 			if err != nil {
+				log.Error().Err(err).Str("claim_type", opts[0].StringValue()).Msg("failed to parse claim")
 				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
@@ -205,7 +207,7 @@ func main() {
 					},
 				})
 				if err != nil {
-					log.Println("[error] failed to respond to command:", err)
+					log.Error().Err(err).Msg("failed to respond to interaction")
 				}
 				return
 			}
@@ -236,11 +238,12 @@ func main() {
 						},
 					})
 					if err != nil {
-						log.Println("[error] failed to respond to command:", err)
+						log.Error().Err(err).Msg("failed to respond to interaction")
 					}
 					return
 				}
-				fmt.Printf("[error]: failed to acquire claim: %s\n", err)
+
+				log.Error().Err(err).Msg("failed to acquire claim")
 				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
@@ -248,7 +251,7 @@ func main() {
 					},
 				})
 				if err != nil {
-					log.Println("[error] failed to respond to command:", err)
+					log.Error().Err(err).Msg("failed to respond to interaction")
 				}
 				return
 			}
@@ -260,13 +263,14 @@ func main() {
 				},
 			})
 			if err != nil {
-				log.Println("[error] failed to respond to command:", err)
+				log.Error().Err(err).Msg("failed to respond to interaction")
 			}
 		},
 		"describe-claim": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			id := i.ApplicationCommandData().Options[0]
 			detail, err := store.DescribeClaim(ctx, int(id.IntValue()))
 			if err != nil {
+				log.Error().Err(err).Msg("failed to describe claim")
 				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
@@ -274,7 +278,7 @@ func main() {
 					},
 				})
 				if err != nil {
-					log.Println("[error] failed to respond to command:", err)
+					log.Error().Err(err).Msg("failed to respond to interaction")
 				}
 			}
 
@@ -291,7 +295,7 @@ func main() {
 				},
 			})
 			if err != nil {
-				log.Println("[error] failed to respond to command:", err)
+				log.Error().Err(err).Msg("failed to respond to interaction")
 			}
 		},
 		"delete-claim": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -303,7 +307,7 @@ func main() {
 				if errors.Is(err, themis.ErrNoSuchClaim) {
 					msg = fmt.Sprintf("Claim #%d not found for %s", id.IntValue(), i.Member.Nick)
 				}
-				log.Printf("[error]: %s\n", err)
+				log.Error().Err(err).Msg("failed to delete claim")
 				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
@@ -311,7 +315,7 @@ func main() {
 					},
 				})
 				if err != nil {
-					log.Println("[error] failed to respond to command:", err)
+					log.Error().Err(err).Msg("failed to respond to interaction")
 				}
 			}
 
@@ -322,7 +326,7 @@ func main() {
 				},
 			})
 			if err != nil {
-				log.Println("[error] failed to respond to command:", err)
+				log.Error().Err(err).Msg("failed to respond to interaction")
 			}
 		},
 		"flush": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -349,7 +353,7 @@ func main() {
 					},
 				},
 			}); err != nil {
-				log.Println("failed to respond to command:", err)
+				log.Error().Err(err).Msg("failed to respond to interaction")
 			}
 		},
 	}
@@ -358,7 +362,7 @@ func main() {
 
 	err = discord.Open()
 	if err != nil {
-		log.Fatalln("fatal error: failed to open session:", err)
+		log.Fatal().Err(err).Msg("failed to open discord websocket")
 	}
 	defer discord.Close()
 
@@ -366,16 +370,16 @@ func main() {
 	for i, c := range commands {
 		command, err := discord.ApplicationCommandCreate(appId, guildId, c)
 		if err != nil {
-			log.Fatalln("fatal error: failed to register command:", err)
+			log.Fatal().Err(err).Msg("failed to register command")
 		}
 		registeredCommands[i] = command
 	}
 
-	log.Printf("registered %d commands\n", len(registeredCommands))
+	log.Info().Int("count", len(registeredCommands)).Msg("registered commands")
 
 	go func() {
 		if err := serve(":8080"); err != nil {
-			log.Printf("[error]: %s\n", err)
+			log.Error().Err(err).Msg("failed to serve requests")
 		}
 		cancel()
 	}()
@@ -385,10 +389,10 @@ func main() {
 	for _, c := range registeredCommands {
 		err = discord.ApplicationCommandDelete(appId, guildId, c.ID)
 		if err != nil {
-			log.Printf("[error]: failed to delete command: %s\n", err)
+			log.Error().Err(err).Msg("failed to deregister commands")
 		}
 	}
-	log.Println("deregistered commands, bye bye!")
+	log.Info().Msg("deregistered commands, exiting")
 	os.Exit(0)
 }
 
@@ -412,7 +416,7 @@ func touchDbFile(path string) error {
 
 func registerHandlers(sess *discordgo.Session, handlers map[string]Handler) {
 	sess.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
+		log.Info().Str("user_id", fmt.Sprintf("%s#%s", s.State.User.Username, s.State.User.Discriminator)).Msg("logged in")
 	})
 	sess.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		switch i.Type {
@@ -428,6 +432,7 @@ func registerHandlers(sess *discordgo.Session, handlers map[string]Handler) {
 					err := store.Flush(context.Background())
 					msg := "Flushed all claims!"
 					if err != nil {
+						log.Error().Err(err).Msg("failed to flush claims")
 						msg = "failed to flush claims from database"
 					}
 
@@ -438,7 +443,7 @@ func registerHandlers(sess *discordgo.Session, handlers map[string]Handler) {
 						},
 					})
 					if err != nil {
-						log.Println("[error] failed to respond to command:", err)
+						log.Error().Err(err).Msg("failed to respond to interaction")
 					}
 					return
 				}
@@ -450,7 +455,7 @@ func registerHandlers(sess *discordgo.Session, handlers map[string]Handler) {
 					},
 				})
 				if err != nil {
-					log.Println("[error] failed to respond to command:", err)
+					log.Error().Err(err).Msg("failed to respond to interaction")
 				}
 				return
 			}
@@ -493,13 +498,13 @@ func handleClaimAutocomplete(ctx context.Context, store *themis.Store, s *discor
 	opts := i.ApplicationCommandData().Options
 	claimType, err := themis.ClaimTypeFromString(opts[0].StringValue())
 	if err != nil {
-		log.Printf("[error]: %s\n", err)
+		log.Error().Err(err).Msg("failed to parse claim type")
 		return
 	}
 
 	availability, err := store.ListAvailability(ctx, claimType, opts[1].StringValue())
 	if err != nil {
-		log.Printf("[error]: %s\n", err)
+		log.Error().Err(err).Msg("failed to list availabilities")
 		return
 	}
 
@@ -517,7 +522,7 @@ func handleClaimAutocomplete(ctx context.Context, store *themis.Store, s *discor
 			Choices: choices[:min(len(choices), 25)],
 		},
 	}); err != nil {
-		log.Printf("[error]: %s\n", err)
+		log.Error().Err(err).Msg("failed to respond to interaction")
 	}
 }
 
