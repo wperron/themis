@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
 
 	"go.wperron.io/themis"
@@ -47,6 +49,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize database")
 	}
+	defer store.Close()
 
 	authToken, ok := os.LookupEnv("DISCORD_TOKEN")
 	if !ok {
@@ -132,6 +135,18 @@ func main() {
 			Name:        "flush",
 			Description: "Remove all claims from the database and prepare for the next game!",
 			Type:        discordgo.ChatApplicationCommand,
+		},
+		{
+			Name:        "query",
+			Description: "Run a raw SQL query on the database",
+			Type:        discordgo.ChatApplicationCommand,
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Name:        "query",
+					Description: "Raw SQL query",
+					Type:        discordgo.ApplicationCommandOptionString,
+				},
+			},
 		},
 	}
 	handlers := map[string]Handler{
@@ -351,6 +366,35 @@ func main() {
 							},
 						},
 					},
+				},
+			}); err != nil {
+				log.Error().Err(err).Msg("failed to respond to interaction")
+			}
+		},
+		"query": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			roDB, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?cache=private&mode=ro", *dbFile))
+			if err != nil {
+				log.Error().Err(err).Msg("failed to open read-only copy of databse")
+			}
+
+			q := i.ApplicationCommandData().Options[0].StringValue()
+			rows, err := roDB.Query(q)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to exec user-provided query")
+				return
+			}
+
+			fmtd, err := themis.FormatRows(rows)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to format rows")
+			}
+
+			table := fmt.Sprintf("```\n%s\n```", fmtd[:min(len(fmtd), 1990)]) // TODO(wperron) find a better way to cutover
+
+			if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: table,
 				},
 			}); err != nil {
 				log.Error().Err(err).Msg("failed to respond to interaction")

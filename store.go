@@ -91,6 +91,10 @@ func NewStore(conn string) (*Store, error) {
 	}, nil
 }
 
+func (s *Store) Close() error {
+	return s.db.Close()
+}
+
 func (s *Store) Claim(ctx context.Context, userId, player, province string, claimType ClaimType) (int, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
