@@ -29,7 +29,7 @@ func FormatRows(rows *sql.Rows) (string, error) {
 	for rows.Next() {
 		row := make([]interface{}, len(cols))
 		for i := range row {
-			row[i] = new(string)
+			row[i] = new(sql.NullString)
 		}
 		if err := rows.Scan(row...); err != nil {
 			return "", fmt.Errorf("failed to scan next row: %w", err)
@@ -37,9 +37,9 @@ func FormatRows(rows *sql.Rows) (string, error) {
 
 		scanned = append(scanned, row) // keep track of row for later
 		for i, a := range row {
-			s := a.(*string)
-			if len(*s) > lengths[i] {
-				lengths[i] = len(*s)
+			s := a.(*sql.NullString)
+			if len(s.String) > lengths[i] {
+				lengths[i] = len(s.String)
 			}
 		}
 	}
@@ -62,7 +62,7 @@ func FormatRows(rows *sql.Rows) (string, error) {
 	for _, r := range scanned {
 		curr = curr[:0] // empty slice but preserve capacity
 		for i := range lengths {
-			s := r[i].(*string)
+			s := r[i].(*sql.NullString)
 			curr = append(curr, lengths[i], *s)
 		}
 		sb.WriteString(fmt.Sprintf(pattern, curr...))

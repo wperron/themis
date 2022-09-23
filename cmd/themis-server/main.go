@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/mattn/go-sqlite3"
@@ -378,7 +379,9 @@ func main() {
 			}
 
 			q := i.ApplicationCommandData().Options[0].StringValue()
-			rows, err := roDB.Query(q)
+			deadlined, cancelDeadline := context.WithTimeout(ctx, 15*time.Second)
+			defer cancelDeadline()
+			rows, err := roDB.QueryContext(deadlined, q)
 			if err != nil {
 				log.Error().Err(err).Msg("failed to exec user-provided query")
 				return
@@ -389,7 +392,10 @@ func main() {
 				log.Error().Err(err).Msg("failed to format rows")
 			}
 
-			table := fmt.Sprintf("```\n%s\n```", fmtd[:min(len(fmtd), 1990)]) // TODO(wperron) find a better way to cutover
+			// 2000 is a magic number here, it's the character limit for a discord
+			// message, we're cutting slightly under that to allow the backticks
+			// for the monospaced block.
+			table := fmt.Sprintf("```\n%s\n```", fmtd[:min(len(fmtd), 1990)])
 
 			if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -429,6 +435,7 @@ func main() {
 	}()
 
 	<-ctx.Done()
+	log.Info().Msg("context cancelled, exiting")
 
 	for _, c := range registeredCommands {
 		err = discord.ApplicationCommandDelete(appId, guildId, c.ID)
