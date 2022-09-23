@@ -63,7 +63,7 @@ func FormatRows(rows *sql.Rows) (string, error) {
 		curr = curr[:0] // empty slice but preserve capacity
 		for i := range lengths {
 			s := r[i].(*sql.NullString)
-			curr = append(curr, lengths[i], *s)
+			curr = append(curr, lengths[i], s.String)
 		}
 		sb.WriteString(fmt.Sprintf(pattern, curr...))
 	}
