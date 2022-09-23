@@ -31,7 +31,10 @@ func FormatRows(rows *sql.Rows) (string, error) {
 		for i := range row {
 			row[i] = new(string)
 		}
-		rows.Scan(row...)
+		if err := rows.Scan(row...); err != nil {
+			return "", fmt.Errorf("failed to scan next row: %w", err)
+		}
+
 		scanned = append(scanned, row) // keep track of row for later
 		for i, a := range row {
 			s := a.(*string)
