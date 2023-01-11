@@ -185,6 +185,22 @@ func TestDescribeClaim(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNoSuchClaim)
 }
 
+func TestCountClaims(t *testing.T) {
+	store, err := NewStore(fmt.Sprintf(TEST_CONN_STRING_PATTERN, "TestFlush"))
+	assert.NoError(t, err)
+
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Genoa", CLAIM_TYPE_TRADE)
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Valencia", CLAIM_TYPE_TRADE)
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Italy", CLAIM_TYPE_REGION)
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Iberia", CLAIM_TYPE_REGION)
+	store.Claim(context.TODO(), "000000000000000001", "foo", "Ragusa", CLAIM_TYPE_TRADE)
+
+	total, uniquePlayers, err := store.CountClaims(context.TODO())
+	assert.NoError(t, err)
+	assert.Condition(t, func() bool { return total > 0 })
+	assert.Condition(t, func() bool { return uniquePlayers > 0 })
+}
+
 func TestFlush(t *testing.T) {
 	store, err := NewStore(fmt.Sprintf(TEST_CONN_STRING_PATTERN, "TestFlush"))
 	assert.NoError(t, err)

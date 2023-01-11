@@ -237,6 +237,21 @@ func (s *Store) DeleteClaim(ctx context.Context, ID int, userId string) error {
 	return nil
 }
 
+func (s *Store) CountClaims(ctx context.Context) (total, uniquePlayers int, err error) {
+	stmt, err := s.db.PrepareContext(ctx, "SELECT COUNT(1), COUNT(DISTINCT(userid)) FROM claims")
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to prepare query: %w", err)
+	}
+
+	res := stmt.QueryRowContext(ctx)
+
+	if err := res.Scan(&total, &uniquePlayers); err != nil {
+		return 0, 0, fmt.Errorf("failed to scan result: %w", err)
+	}
+
+	return total, uniquePlayers, nil
+}
+
 func (s *Store) Flush(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, "DELETE FROM claims;")
 	if err != nil {

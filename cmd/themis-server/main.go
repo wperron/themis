@@ -76,8 +76,8 @@ func main() {
 
 	commands := []*discordgo.ApplicationCommand{
 		{
-			Name:        "ping",
-			Description: "Ping Themis",
+			Name:        "info",
+			Description: "Server Information",
 			Type:        discordgo.ChatApplicationCommand,
 		},
 		{
@@ -151,11 +151,39 @@ func main() {
 		},
 	}
 	handlers := map[string]Handler{
-		"ping": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		"info": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			uptime, err := themis.Uptime()
+			if err != nil {
+				log.Error().Err(err).Msg("failed to get server uptime")
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Oops, something went wrong! :(",
+					},
+				})
+				if err != nil {
+					log.Error().Err(err).Msg("failed to respond to interaction")
+				}
+			}
+
+			claimCount, uniquePlayers, err := store.CountClaims(ctx)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to count claims")
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Oops, something went wrong! :(",
+					},
+				})
+				if err != nil {
+					log.Error().Err(err).Msg("failed to respond to interaction")
+				}
+			}
+
+			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: "Pong",
+					Content: fmt.Sprintf("Server has been up for %s, has %d claims from %d unique players", uptime, claimCount, uniquePlayers),
 				},
 			})
 			if err != nil {
