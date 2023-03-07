@@ -1,7 +1,7 @@
-FROM golang:1.19 as builder
+FROM golang:1.19-buster as builder
 WORKDIR /app
 COPY . .
-RUN go build -o ./bin ./cmd/...
+RUN go build -buildvcs=false -o ./bin ./cmd/...
 
 FROM ubuntu:22.04 as litestream
 WORKDIR /download
