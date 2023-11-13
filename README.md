@@ -1,4 +1,4 @@
-> ::WARN:: This is a publis archive, development continues over at https://git.doots.space/wperron/themis
+> ⚠️ This is a publis archive, development continues over at https://git.doots.space/wperron/themis
 
 # themis
 
