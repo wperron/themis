@@ -1,3 +1,5 @@
+> ::WARN:: This is a publis archive, development continues over at https://git.doots.space/wperron/themis
+
 # themis
 
 Discord App to allow EU4 players to take claims on regions and provinces.
